@@ -1,5 +1,6 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>DC Standort</title>
+<meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -432,7 +433,7 @@ tbody tr:hover{background:var(--ghost); cursor:pointer}
 
   <div class="topbar">
     <div class="brand">
-      <h1>DC Standort</h1>
+      <h1>DC Standort <span class="pill" style="vertical-align:3px;margin-left:6px;font-size:10px">Developer preview</span></h1>
       <div class="lbl" id="tagline">What a site adds to the cost of an AI data centre &middot; Germany, 10 km cells</div>
     </div>
     <div class="hdctl">
@@ -781,8 +782,9 @@ tbody tr:hover{background:var(--ghost); cursor:pointer}
       <li><b>Data.</b> Public sources, retrieved 20 September 2026 and frozen; the sources table above says what may be
       redistributed. Grid fees are the 2026 price sheets. Published capacity changes continuously.</li>
       <li><b>Feedback.</b> What is wrong, what is missing, what you would need to trust a number: <a id="aboutContact" href="mailto:i.baraia@tum.de">i.baraia@tum.de</a>.</li>
+      <li><b>Where it lives.</b> <a href="https://inigobaraia.github.io/dc-standort/">https://inigobaraia.github.io/dc-standort/</a> — the address always shows the latest version; whatever follows the # in the address bar reproduces your current view, so copy the whole address to share exactly what you see.</li>
       <li><b>Tour.</b> <a href="#" id="tourAgain">Show the one-minute tour again</a>.</li>
-      <li><b>Version.</b> Model V8 · page v60 · 3 747 cells of 10 &times; 10 km. Contains OpenStreetMap data &copy; OpenStreetMap contributors, ODbL.</li>
+      <li><b>Version.</b> Model V8 · page v62 · 3 747 cells of 10 &times; 10 km. Contains OpenStreetMap data &copy; OpenStreetMap contributors, ODbL.</li>
       </ul>
       </div>
     </div>
@@ -2155,7 +2157,11 @@ hShareSel.addEventListener('change',()=>{ S.hShare=+hShareSel.value; BKEY=''; re
 document.getElementById('cRate').addEventListener('change',e=>{ S.cRate=+e.target.value; BKEY=''; refresh(); });
 document.getElementById('cYears').addEventListener('change',e=>{ S.cYears=+e.target.value; BKEY=''; refresh(); });
 document.getElementById('fReachOn').addEventListener('change',e=>{ S.fReach=e.target.checked; BKEY=''; refresh(); });
-document.getElementById('fReachKm').addEventListener('input',e=>{ S.fReachKm=+e.target.value; BKEY=''; refresh(); });
+/* v62: un deslizador dispara decenas de eventos por segundo y cada recalculo cuesta ~100 ms;
+   se agrupan por fotograma y se ejecuta una vez con el ultimo valor. */
+function rafOnce(fn){ let pending=false; return function(){ if (pending) return; pending=true; requestAnimationFrame(()=>{ pending=false; fn(); }); }; }
+const refreshRAF=rafOnce(refresh);
+document.getElementById('fReachKm').addEventListener('input',e=>{ S.fReachKm=+e.target.value; document.getElementById('vFReach').textContent=S.fReachKm; BKEY=''; refreshRAF(); });
 document.getElementById('fLatOn').addEventListener('change',e=>{ S.fLat=e.target.checked; BKEY=''; refresh(); });
 document.getElementById('fLatMs').addEventListener('change',e=>{ S.fLatMs=+e.target.value; BKEY=''; refresh(); });
 hFilterOn.addEventListener('change',()=>{ S.hFilter=hFilterOn.checked; BKEY=''; refresh(); });
@@ -2165,7 +2171,8 @@ hRadSel.addEventListener('change',()=>{ S.hRad=+hRadSel.value; BKEY=''; refresh(
 mwSel.addEventListener('change',famChanged);
 yrSel.addEventListener('change',famChanged);
 reachOn.addEventListener('change',famChanged);
-reachKm.addEventListener('input',famChanged);
+const famChangedRAF=rafOnce(famChanged);
+reachKm.addEventListener('input',()=>{ document.getElementById('vReach').textContent=reachKm.value; famChangedRAF(); });
 /* Los mapas van agrupados por CAPA, en el orden de la tesis: primero lo que junta las tres,
    luego red, calor, fibra, y al final suelo y sitio. */
 const METRIC_GROUPS=[
@@ -2211,7 +2218,7 @@ function applyWeights(){
   const v=wel.map(e=>+e.value), s=v[0]+v[1]+v[2]||1;
   S.wE=v[0]/s; S.wF=v[1]/s; S.wH=v[2]/s;
   vel[0].textContent=S.wE.toFixed(2); vel[1].textContent=S.wF.toFixed(2); vel[2].textContent=S.wH.toFixed(2);
-  refresh();
+  refreshRAF();
   const base=v[0]===33&&v[1]===33&&v[2]===34;
   document.getElementById('wnote').innerHTML = base
     ? 'Equal weights. Move one and the other two rebalance; the composite index map recomputes.'
@@ -2461,7 +2468,7 @@ function favTSV(){
   const H=['Cell','Cost €/MWh','Grade','Connection','Connection point','Operator','Connection capex','Grid fee per year','Heat demand ÷ obligation','Distance to fibre','Room for 30 ha campus'];
   const rows=S.fav.map(favRow).map(r=>[r.id,r.eur,r.grade,r.conn,r.node,r.op,r.capex,r.fee.replace('*',' (assumed)')+' M€/a',r.heat,r.fibre,r.site]);
   const ctx='DC Standort · '+S.P+' MW · '+modeSel.options[modeSel.selectedIndex].text+(modeA()?' · by '+S.year:'')+' · '+(S.cRate*100).toLocaleString('de',{maximumFractionDigits:2})+' % over '+S.cYears+' years · heat '+Math.round(S.hShare*100)+' % within '+S.hRad+' km';
-  return ctx+'\n'+H.join('\t')+'\n'+rows.map(r=>r.join('\t')).join('\n');
+  return ctx+'\n'+H.join('\t')+'\n'+rows.map(r=>r.join('\t')).join('\n')+'\n'+'https://inigobaraia.github.io/dc-standort/'+location.hash;
 }
 document.getElementById('favCopy').addEventListener('click',async()=>{
   const t=favTSV(); const b=document.getElementById('favCopy');
